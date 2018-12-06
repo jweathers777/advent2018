@@ -4,50 +4,64 @@ use std::io::BufReader;
 use std::fs::File;
 use std::collections::HashSet;
 
-fn reduce(a: &str) -> String {
-    let n = a.len();
+fn reduce(s: &str) -> String {
+    //println!("{}", s);
+    let n = s.len();
     if n <= 1 {
-        String::from(a)
+        String::from(s)
     } else {
-        let mut s = String::with_capacity(n);
-        let a_chars = a.chars();
-        let mut shifted_a_chars = a.chars();
-        shifted_a_chars.next();
+        let mut received: Vec<char> = s.chars().collect();
+        let mut reduced: Vec<char> = s.chars().collect();
 
-        let mut zipped = a_chars.zip(shifted_a_chars);
-        let mut append_last_char = false;
-        let mut last_char = ' ';
-        let mut reductions = 0;
+        let mut current_n = n;
 
         loop {
-            match zipped.next() {
-                Some((c1, c2)) => {
-                    if c1 == c2 {
-                        s.push(c1);
-                        append_last_char = true;
-                        last_char = c2;
-                    } else {
-                        let lc1 = c1.to_lowercase().to_string();
-                        let lc2 = c2.to_lowercase().to_string();
+            let mut i = 1;
+            let mut j = 0;
+            let mut prev = received[0];
+            let mut lprev = prev.to_lowercase().to_string();
+            let mut reductions = 0;
 
-                        if lc1 != lc2 {
-                            s.push(c1);
-                            append_last_char = true;
-                            last_char = c2;
-                        } else {
-                            zipped.next();
-                            reductions += 1;
-                            append_last_char = false;
-                        }
+            loop {
+                let current = received[i];
+                let lcurrent = current.to_lowercase().to_string();
+
+                if current == prev || lcurrent != lprev {
+                    reduced[j] = prev;
+                    prev = current;
+                    lprev = lcurrent;
+                    i += 1;
+                    j += 1;
+                } else {
+                    reductions += 1;
+                    i += 2;
+                    if i <= current_n {
+                        prev = received[i-1];
+                        lprev = prev.to_lowercase().to_string();
                     }
-                },
-                None => { break },
-            };
+                }
+
+                if i == current_n {
+                    reduced[j] = prev;
+                    current_n = j+1;
+                    break;
+                } else if i > current_n {
+                    current_n = j;
+                    break;
+                }
+            }
+
+            //println!("{}", &reduced[0..current_n].iter().collect::<String>());
+            if reductions == 0 {
+                break;
+            } else {
+                let temp = reduced;
+                reduced = received;
+                received = temp;
+            }
         }
-
-        if append_last_char { s.push(last_char) };
-
-        if reductions == 0 { s } else { reduce(s.as_str()) }
+        reduced.truncate(current_n);
+        reduced.into_iter().collect::<String>()
     }
 }
 
