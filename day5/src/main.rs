@@ -4,63 +4,52 @@ use std::io::BufReader;
 use std::fs::File;
 use std::collections::HashSet;
 
+fn eqv(c1: &char, c2: &char) -> bool {
+    let lc1 = c1.to_lowercase().to_string();
+    let lc2 = c2.to_lowercase().to_string();
+    c1 != c2 && lc1 == lc2
+}
+
 fn reduce(s: &str) -> String {
-    //println!("{}", s);
     let n = s.len();
     if n <= 1 {
         String::from(s)
     } else {
-        let mut received: Vec<char> = s.chars().collect();
-        let mut reduced: Vec<char> = s.chars().collect();
+        let mut received = s.chars().peekable();
+        let mut reduced: Vec<char> = vec!['0';n];
 
-        let mut current_n = n;
+        let mut j = 0;
 
         loop {
-            let mut i = 1;
-            let mut j = 0;
-            let mut prev = received[0];
-            let mut lprev = prev.to_lowercase().to_string();
-            let mut reductions = 0;
-
-            loop {
-                let current = received[i];
-                let lcurrent = current.to_lowercase().to_string();
-
-                if current == prev || lcurrent != lprev {
-                    reduced[j] = prev;
-                    prev = current;
-                    lprev = lcurrent;
-                    i += 1;
-                    j += 1;
-                } else {
-                    reductions += 1;
-                    i += 2;
-                    if i <= current_n {
-                        prev = received[i-1];
-                        lprev = prev.to_lowercase().to_string();
+            match received.next() {
+                Some(src) => {
+                    if j >= 1 {
+                        let left = reduced[j-1];
+                        if eqv(&src, &left) {
+                            j -= 1;
+                            continue;
+                        }
                     }
-                }
 
-                if i == current_n {
-                    reduced[j] = prev;
-                    current_n = j+1;
-                    break;
-                } else if i > current_n {
-                    current_n = j;
-                    break;
-                }
-            }
-
-            //println!("{}", &reduced[0..current_n].iter().collect::<String>());
-            if reductions == 0 {
-                break;
-            } else {
-                let temp = reduced;
-                reduced = received;
-                received = temp;
+                    match received.peek() {
+                        Some(&right) => {
+                            if eqv(&src, &right) {
+                                received.next();
+                            } else {
+                                reduced[j] = src;
+                                j += 1;
+                            }
+                        },
+                        None => {
+                            reduced[j] = src;
+                            j += 1;
+                        }
+                    }
+                },
+                None => { break }
             }
         }
-        reduced.truncate(current_n);
+        reduced.truncate(j);
         reduced.into_iter().collect::<String>()
     }
 }
