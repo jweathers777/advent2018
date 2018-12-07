@@ -80,20 +80,7 @@ impl std::str::FromStr for Point {
     }
 }
 
-fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 3 { panic!("Too few arguments!") }
-
-    let f = File::open(&args[1]).expect("File not found!");
-    let reader = BufReader::new(&f);
-
-    //let part: u32 = args[2].parse().expect("Invalid part!");
-
-    let points: Vec<Point> = reader.
-        lines().
-        map(|l| l.unwrap().trim().parse::<Point>().expect("Invalid point!")).
-        collect();
-
+fn do_part_one(points: Vec<Point>) {
     let min_x = 0;
     let min_y = 0;
     let max_x = points.iter().map(|p| p.x).max().unwrap();
@@ -135,4 +122,52 @@ fn main() {
     let max_area = areas.get(max_p).unwrap();
 
     println!("{}: {}", max_p, max_area);
+}
+
+fn do_part_two(points: Vec<Point>, max_dist: u32) {
+    let min_x = 0;
+    let min_y = 0;
+    let max_x = points.iter().map(|p| p.x).max().unwrap();
+    let max_y = points.iter().map(|p| p.y).max().unwrap();
+
+    let mut region = HashSet::new();
+
+    for i in min_x..=max_x {
+        for j in min_y..=max_y {
+            let q = Point{x: i, y: j};
+
+            let distances: Vec<u32> = points.iter().
+                map(|p| manhattan_distance(&p, &q)).collect();
+
+            let total_distance: u32 = distances.iter().sum();
+
+            if total_distance < max_dist {
+                region.insert(q);
+            }
+        }
+    }
+
+    println!("{}", region.len());
+}
+
+fn main() {
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 3 { panic!("Too few arguments!") }
+
+    let f = File::open(&args[1]).expect("File not found!");
+    let reader = BufReader::new(&f);
+
+    let part: u32 = args[2].parse().expect("Invalid part!");
+
+    let points: Vec<Point> = reader.
+        lines().
+        map(|l| l.unwrap().trim().parse::<Point>().expect("Invalid point!")).
+        collect();
+
+    if part == 1 {
+        do_part_one(points);
+    } else {
+        let max_dist: u32 = args[3].parse().expect("Invalid max distance!");
+        do_part_two(points, max_dist);
+    }
 }
