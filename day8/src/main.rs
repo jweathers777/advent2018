@@ -10,11 +10,28 @@ use std::fmt::Formatter;
 struct Node {
     label: String,
     children: Vec<usize>,
-    metadata_entries: Vec<u32>,
+    metadata_entries: Vec<usize>,
 }
 
 struct NodeTree {
     nodes: Vec<Node>,
+}
+
+impl Node {
+    fn value(&self, node_tree: &NodeTree) -> u32 {
+        if self.children.is_empty() {
+            self.metadata_entries.iter().
+                map(|entry| *entry as u32).
+                sum()
+        } else {
+            let children_count = self.children.len();
+            self.metadata_entries.iter().
+                filter(|child_idx| **child_idx <= children_count).
+                map(|child_idx| self.children[*child_idx - 1]).
+                map(|idx| node_tree.nodes[idx].value(node_tree)).
+                sum()
+        }
+    }
 }
 
 impl std::fmt::Display for NodeTree {
@@ -25,13 +42,15 @@ impl std::fmt::Display for NodeTree {
                 map(|idx| (&self.nodes[*idx].label).to_string()).
                 collect::<Vec<String>>().
                 join(", ");
-            writeln!(f, "   - Children [{}]", children)?;
+            writeln!(f, "   - Children: [{}]", children)?;
 
             let entries = node.metadata_entries.iter().
                 map(|c| c.to_string()).
                 collect::<Vec<String>>().
                 join(", ");
-            writeln!(f, "   - Entries [{}]", entries)?;
+            writeln!(f, "   - Entries: [{}]", entries)?;
+
+            writeln!(f, "   - Value: {}", node.value(&self));
         }
         writeln!(f, "")
     }
@@ -42,9 +61,9 @@ impl std::str::FromStr for NodeTree {
 
     fn from_str(s: &str) -> Result<Self, <Self as std::str::FromStr>::Err> {
         let mut values = s.split_whitespace().
-            map(|v| v.parse::<u32>().unwrap()).peekable();
+            map(|v| v.parse::<usize>().unwrap()).peekable();
 
-        let mut stack: Vec<(usize, u32, u32)> = Vec::with_capacity(s.len());
+        let mut stack: Vec<(usize, usize, usize)> = Vec::with_capacity(s.len());
         let mut node_index: usize = 0;
         let mut nodes: Vec<Node> = vec![];
 
@@ -103,18 +122,27 @@ impl std::str::FromStr for NodeTree {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    if args.len() < 2 { panic!("Too few arguments!") }
+    if args.len() < 3 { panic!("Too few arguments!") }
 
     let f = File::open(&args[1]).expect("File not found!");
     let mut reader = BufReader::new(&f);
+
+    let part: u32 = args[2].parse().expect("Error reading part!");
 
     let mut contents= String::new();
     reader.read_to_string(&mut contents).expect("Error reading file content!");
 
     let node_tree: NodeTree = contents.parse().expect("Error parsing node tree!");
 
-    let checksum: u32 = node_tree.nodes.iter().
-        flat_map(|node| node.metadata_entries.iter()).sum();
+    if part == 1 {
+        let checksum: u32 = node_tree.nodes.iter().
+            flat_map(|node| node.metadata_entries.iter()).
+            map(|v| *v as u32).
+            sum();
 
-    println!("{}", checksum);
+        println!("{}", checksum);
+    } else {
+        let root_value = node_tree.nodes.first().unwrap().value(&node_tree);
+        println!("{}", root_value);
+    }
 }
