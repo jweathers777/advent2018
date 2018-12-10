@@ -76,7 +76,7 @@ impl std::str::FromStr for Point {
         let x_fromstr = coords[0].parse::<u32>()?;
         let y_fromstr = coords[1].parse::<u32>()?;
 
-        Ok(Point { x: x_fromstr, y: y_fromstr  })
+        Ok(Point { x: x_fromstr, y: y_fromstr })
     }
 }
 
