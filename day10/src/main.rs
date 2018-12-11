@@ -13,13 +13,6 @@ struct IndexPair {
     j: usize,
 }
 
-fn euclidean_distance(p: &IndexPair, q: &IndexPair) -> f64 {
-    let i_delta = if p.i > q.i { p.i - q.i } else { q.i - p.i};
-    let j_delta = if p.j > q.j { p.j - q.j } else { q.j - p.j};
-
-    ((i_delta * i_delta + j_delta * j_delta) as f64).sqrt()
-}
-
 #[derive(Copy,Clone,Hash,Eq,PartialEq,PartialOrd,Ord)]
 struct Point {
     x: i32,
@@ -118,15 +111,15 @@ impl ParticleGrid {
         let min_y = particles.iter().map(|p| p.position.y).min().unwrap();
         let max_y = particles.iter().map(|p| p.position.y).max().unwrap();
 
-        let mut grid: HashMap<IndexPair,Vec<Particle>> = HashMap::new();
+        let mut grid: HashMap<IndexPair, Vec<Particle>> = HashMap::new();
         for particle in particles.iter() {
             let col = (particle.position.x - min_x) as usize;
             let row = (particle.position.y - min_y) as usize;
-            let mut position = grid.entry(IndexPair{i: row, j: col}).or_insert(vec![]);
+            let mut position = grid.entry(IndexPair { i: row, j: col }).or_insert(vec![]);
             position.push(*particle);
         }
 
-        ParticleGrid{particles: grid, min_x : min_x, max_x: max_x, min_y: min_y, max_y: max_y}
+        ParticleGrid { particles: grid, min_x: min_x, max_x: max_x, min_y: min_y, max_y: max_y }
     }
 
     fn forward(&mut self) {
@@ -157,23 +150,12 @@ impl ParticleGrid {
         *self = ParticleGrid::new(particles);
     }
 
-    fn max_min_link(&self) -> f64 {
-        let mut result = 0f64;
-        for (p, _) in self.particles.iter() {
-            let mut min_link= (self.max_x + 1) as f64;
-            for (q, _) in self.particles.iter() {
-                if *p != *q {
-                    let d = euclidean_distance(p, q);
-                    if d < min_link {
-                        min_link = d;
-                    }
-                }
-            }
-            if min_link > result {
-                result = min_link;
-            }
-        }
-        result
+    fn width(&self) -> u32 {
+        (self.max_x - self.min_x) as u32
+    }
+
+    fn height(&self) -> u32 {
+        (self.max_y - self.min_y) as u32
     }
 }
 
@@ -206,7 +188,7 @@ impl fmt::Display for ParticleGrid {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    if args.len() < 3 { panic!("Too few arguments!") }
+    if args.len() < 2 { panic!("Too few arguments!") }
 
     let f = File::open(&args[1]).expect("File not found!");
     let reader = BufReader::new(&f);
@@ -216,19 +198,21 @@ fn main() {
         map(|l| l.unwrap().trim().parse::<Particle>().expect("Invalid particle!")).
         collect();
 
-    let times: usize = args[2].parse().expect("Times not given!");
     let mut grid = ParticleGrid::new(particles);
 
-    let mut last_grid_max_min_link = grid.max_min_link();
+    let mut last_width = grid.width();
+    let mut last_height = grid.height();
     let mut i = 1u32;
     loop {
         grid.forward();
 
-        let current_max_min_link = grid.max_min_link();
-        if current_max_min_link >= last_grid_max_min_link && last_grid_max_min_link < 2f64 {
+        let current_width = grid.width();
+        let current_height = grid.height();
+        if current_height > last_height || current_width > last_width {
             break;
         }
-        last_grid_max_min_link = current_max_min_link;
+        last_height = current_height;
+        last_width = current_width;
         i += 1;
     }
     i -= 1;
