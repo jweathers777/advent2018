@@ -34,6 +34,15 @@ impl PlantSystem {
     }
 
     fn total_value(&self) -> i32 {
+//        let mut vals = self.values.iter().collect::<Vec<&i32>>();
+//        vals.sort();
+//
+//        let vstring = vals.iter().
+//            map(|i| i.to_string()).
+//            collect::<Vec<String>>().join(" -> ");
+//
+//        println!("{}", vstring);
+
         self.values.iter().sum()
     }
 
@@ -42,6 +51,12 @@ impl PlantSystem {
         let upper_bound = idx + 2;
 
         (lower_bound..=upper_bound).map(|i|
+            if self.values.contains(&i) {'#'} else {'.'}
+        ).collect::<String>()
+    }
+
+    fn to_string(&self) -> String {
+        (self.min_value..=self.max_value).map(|i|
             if self.values.contains(&i) {'#'} else {'.'}
         ).collect::<String>()
     }
@@ -81,16 +96,15 @@ impl PlantSystem {
 
 impl std::fmt::Display for PlantSystem {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        for idx in self.min_value..=self.max_value {
-            write!(f, "{}", if self.values.contains(&idx) { "#" } else { "." });
-        }
-        write!(f, "")
+        write!(f, "{}", self.to_string())
     }
 }
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    if args.len() < 2 { panic!("Too few arguments!") }
+    if args.len() < 3 { panic!("Too few arguments!") }
+
+    let n = args[2].parse::<usize>().expect("Invalid number of generations!");
 
     let f = File::open(&args[1]).expect("File not found!");
     let reader = BufReader::new(&f);
@@ -101,9 +115,23 @@ fn main() {
 
     let mut plant_system = PlantSystem::new(lines);
 
-    for i in 0..20 {
-        println!("{}: {}", i, plant_system);
-        plant_system.advance()
-    };
-    println!("Total Value: {}", plant_system.total_value());
+    let mut last_str = plant_system.to_string();
+    let mut last_total_value = plant_system.total_value() as u64;
+
+    for i in 0..n {
+        plant_system.advance();
+        let current_str = plant_system.to_string();
+        let current_total_value = plant_system.total_value() as u64;
+
+        if current_str == last_str && current_total_value != last_total_value {
+            let delta = current_total_value - last_total_value;
+            last_total_value = (n - i - 1) as u64 * delta + current_total_value;
+            break;
+        } else {
+            last_str = current_str;
+            last_total_value = current_total_value;
+        }
+    }
+
+    println!("{}", last_total_value);
 }
