@@ -5,6 +5,7 @@ use std::fmt;
 use std::env;
 use std::collections::HashSet;
 use std::collections::HashMap;
+use std::cmp::Ordering;
 
 enum Direction {
     North, South, East, West
@@ -14,7 +15,7 @@ enum Turn {
     Left, Straight, Right
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Copy, Clone)]
 struct Coord {
     row: usize,
     col: usize,
@@ -46,6 +47,7 @@ struct TrackSystem {
     rows: Vec<Vec<char>>,
     carts: Vec<Cart>,
     crashes: HashSet<Coord>,
+    errors: HashSet<Coord>,
 }
 
 impl TrackSystem {
@@ -57,13 +59,26 @@ impl TrackSystem {
             let mut cols = Vec::new();
             for (col, c) in line.chars().enumerate() {
                 match c {
-                    '^' => carts.push(Cart::new(row, col,Direction::North)),
-                    'v' => carts.push(Cart::new(row, col, Direction::South)),
-                    '<' => carts.push(Cart::new(row, col, Direction::West)),
-                    '>' => carts.push(Cart::new(row, col, Direction::East)),
-                    _ => {},
+                    '^' => {
+                        cols.push('|');
+                        carts.push(Cart::new(row, col,Direction::North))
+                    },
+                    'v' => {
+                        cols.push('|');
+                        carts.push(Cart::new(row, col, Direction::South))
+                    },
+                    '<' => {
+                        cols.push('-');
+                        carts.push(Cart::new(row, col, Direction::West))
+                    },
+                    '>' => {
+                        cols.push('-');
+                        carts.push(Cart::new(row, col, Direction::East))
+                    },
+                    _ => {
+                        cols.push(c)
+                    },
                 }
-                cols.push(c);
             }
             rows.push(cols);
         }
@@ -71,40 +86,41 @@ impl TrackSystem {
         let min_row_index: usize = 0;
         let max_row_index: usize = rows.len() - 1;
         let min_col_index: usize = 0;
-        let max_col_index: usize = rows[0].len() - 1;
+        let max_col_index: usize = rows.iter().map(|r| r.len()).max().unwrap() - 1;
 
-        for cart in &carts {
-            let adj_north = if cart.row <= min_row_index { ' ' } else { rows[cart.row-1][cart.col] };
-            let adj_south = if cart.row >= max_row_index { ' ' } else { rows[cart.row+1][cart.col] };
-            let adj_west = if cart.col <= min_col_index { ' ' } else { rows[cart.row][cart.col-1] };
-            let adj_east = if cart.col >= max_col_index { ' ' } else { rows[cart.row][cart.col+1] };
+        let vertical = ['|', '+', '/', '\\'];
+        let horizontal = ['-', '+', '/', '\\'];
 
-            rows[cart.row][cart.col] =
-                if adj_north == ' ' && adj_west == ' ' {
-                    '/'
-                } else if adj_north == ' ' && adj_east == ' ' {
-                    '\\'
-                } else if adj_south == ' ' && adj_west == ' ' {
-                    '\\'
-                } else if adj_south ==  ' ' && adj_east == ' ' {
-                    '/'
-                } else if adj_north != ' ' && adj_south != ' ' &&
-                    adj_west != ' ' && adj_east != ' ' {
-                    '+'
-                } else if adj_north != ' ' {
-                    '|'
-                } else {
-                    '-'
-                }
-        }
-
-        TrackSystem{rows, carts, crashes: HashSet::new()}
+        TrackSystem{rows, carts, crashes: HashSet::new(), errors: HashSet::new()}
     }
 
     fn forward(&mut self) {
-        let mut new_positions = HashSet::new();
+        let mut positions = HashSet::new();
+
+        self.carts.sort_unstable_by(|a,b| {
+            if a.row < b.row {
+                Ordering::Less
+            } else if a.row > b.row {
+                Ordering::Greater
+            } else {
+                if a.col < b.col {
+                    Ordering::Less
+                } else if a.col > b.col {
+                    Ordering::Greater
+                } else {
+                    Ordering::Equal
+                }
+            }
+        });
+
+        for cart in self.carts.iter() {
+            let position = Coord{row: cart.row, col: cart.col};
+            positions.insert(position.clone());
+        }
 
         for cart in self.carts.iter_mut() {
+            let old_position = Coord{row: cart.row, col: cart.col};
+
             match cart.direction {
                 Direction::North => cart.row -= 1,
                 Direction::South => cart.row += 1,
@@ -112,14 +128,19 @@ impl TrackSystem {
                 Direction::East => cart.col += 1,
             }
 
-            let position = Coord{row: cart.row, col: cart.col};
-            if new_positions.contains(&position) {
-                self.crashes.insert(position);
-            } else {
-                new_positions.insert(position);
+            let new_position = Coord{row: cart.row, col: cart.col};
+            let track_piece = self.rows[cart.row][cart.col];
+
+            if track_piece == ' ' {
+               self.errors.insert(new_position.clone());
             }
 
-            let track_piece = self.rows[cart.row][cart.col];
+            if positions.contains(&new_position) {
+                self.crashes.insert(new_position);
+            } else {
+                positions.remove(&old_position);
+                positions.insert(new_position);
+            }
 
             if track_piece == '+' {
                 match cart.next_turn {
@@ -173,6 +194,7 @@ impl fmt::Display for TrackSystem {
         }
 
         for (r, row) in self.rows.iter().enumerate() {
+            write!(f, "{:03}", r);
             for (c, col) in row.iter().enumerate() {
                 let coord = Coord{row: r, col: c};
                 if self.crashes.contains(&coord) {
@@ -202,12 +224,17 @@ fn main() {
     reader.read_to_string(&mut s).expect("Error reading file into string!");
 
     let mut track_system = TrackSystem::new(&s);
+    let mut tick = 1usize;
 
-    println!("{}", track_system);
-
-    while track_system.crashes.len() < 1 {
-        track_system.forward();
-
+    while track_system.errors.len() < 1 && track_system.crashes.len() < 1 {
+        println!("Tick: {}", tick);
         println!("{}", track_system);
+        tick += 1;
+        track_system.forward();
     }
+
+    println!("Tick: {}", tick);
+    println!("{}", track_system);
+    let first_crash = track_system.crashes.iter().next().unwrap();
+    println!("{},{}", first_crash.col, first_crash.row);
 }
