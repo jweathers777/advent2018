@@ -49,8 +49,8 @@ struct Unit {
 }
 
 impl Unit {
-    fn new(kind: UnitKind) -> Unit {
-        Unit{kind, attack_power: 3, hit_points: 200}
+    fn new(kind: UnitKind, attack_power: u32) -> Unit {
+        Unit{kind, attack_power, hit_points: 200}
     }
 }
 
@@ -81,11 +81,14 @@ struct CombatBoard {
     elves: HashSet<Coord>,
     goblins: HashSet<Coord>,
     units: HashMap<Coord,Unit>,
+    allow_dead_elves: bool,
+    starting_elf_count: usize,
     rounds: u32,
 }
 
 impl CombatBoard {
-    fn new(s: &str) -> CombatBoard {
+    fn new(s: &str, elf_attack_power: u32, allow_dead_elves: bool) -> CombatBoard {
+        let goblin_attack_power = 3;
         let mut rows = Vec::new();
         let mut elves = HashSet::new();
         let mut goblins = HashSet::new();
@@ -99,12 +102,12 @@ impl CombatBoard {
                     'E' => {
                         cols.push('.');
                         elves.insert(coord);
-                        units.insert(coord, Unit::new(Elf));
+                        units.insert(coord, Unit::new(Elf, elf_attack_power));
                     },
                     'G' => {
                         cols.push('.');
                         goblins.insert(coord);
-                        units.insert(coord, Unit::new(Goblin));
+                        units.insert(coord, Unit::new(Goblin, goblin_attack_power));
                     },
                     _ => {
                         cols.push(c);
@@ -114,11 +117,21 @@ impl CombatBoard {
             rows.push(cols);
         }
 
-        CombatBoard{rows, elves, goblins, units, rounds: 0}
+        let starting_elf_count = elves.len();
+
+        CombatBoard{rows, elves, goblins, units, allow_dead_elves, starting_elf_count, rounds: 0}
+    }
+
+    fn an_elf_has_died(&self) -> bool {
+        self.elves.len() < self.starting_elf_count
     }
 
     fn is_finished(&self) -> bool {
-        self.elves.len() == 0 || self.goblins.len() == 0
+        if self.allow_dead_elves {
+            self.elves.len() == 0 || self.goblins.len() == 0
+        } else {
+            self.elves.len() < self.starting_elf_count || self.goblins.len() == 0
+        }
     }
 
     fn sorted_unit_positions(&self) -> Vec<Coord> {
@@ -289,8 +302,10 @@ impl CombatBoard {
 
     fn execute_round(&mut self) {
         let positions = self.sorted_unit_positions();
+        let mut positions_left = positions.len();
 
         for &position in positions.iter() {
+            positions_left -= 1;
             let (kind, living) = {
                 match self.units.get(&position) {
                     Some(unit) => (unit.kind, true),
@@ -311,7 +326,7 @@ impl CombatBoard {
                 match self.find_best_target(new_position, kind) {
                     Some(target) => {
                         self.attack_target(new_position, target);
-                        if self.is_finished() {
+                        if self.is_finished() && positions_left > 0 {
                             return;
                         }
                     },
@@ -363,21 +378,41 @@ impl fmt::Display for CombatBoard {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    if args.len() < 2 { panic!("Too few arguments!") }
+    if args.len() < 3 { panic!("Too few arguments!") }
+
+    let part = args[2].parse::<u32>().expect("Invalid part!");
 
     let mut s = String::new();
     let f = File::open(&args[1]).expect("File not found!");
     let mut reader = BufReader::new(&f);
     reader.read_to_string(&mut s).expect("Error reading file into string!");
 
-    let mut board = CombatBoard::new(&s);
-
-    println!("{}", board);
-
-    while !board.is_finished() {
-        board.execute_round();
+    if part == 1 {
+        let mut board = CombatBoard::new(&s, 3, true);
+        println!("{}", board);
+        while !board.is_finished() {
+            board.execute_round();
+        }
+        println!("{}", board);
+        println!("Outcome: {}", board.outcome());
+    } else {
+        let mut attack_power = 4;
+        loop {
+            let mut board = CombatBoard::new(&s, attack_power, false);
+            if attack_power == 4 {
+                println!("{}", board);
+            }
+            while !board.is_finished() {
+                board.execute_round();
+            }
+            if board.an_elf_has_died() {
+                attack_power += 1;
+            } else {
+                println!("Elf Attack Power: {}", attack_power);
+                println!("{}", board);
+                println!("Outcome: {}", board.outcome());
+                break;
+            }
+        }
     }
-
-    println!("{}", board);
-    println!("Outcome: {}", board.outcome());
 }
