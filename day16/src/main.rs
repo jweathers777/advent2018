@@ -253,7 +253,7 @@ impl<'a> HopcroftKarp<'a> {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    if args.len() < 2 { panic!("Too few arguments!") }
+    if args.len() < 3 { panic!("Too few arguments!") }
 
     let part = args[2].parse::<u32>().expect("Invalid part!");
 
